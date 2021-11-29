@@ -19,7 +19,7 @@
 class UberGallery {
 
     // Define application version
-    const VERSION = '2.4.8';
+    const VERSION = '2.4.8-1';
 
     // Reserve some variables
     protected $_config     = array();
@@ -104,17 +104,17 @@ class UberGallery {
             if (!file_exists($this->_debugLog)) {
 
                 // Get libgd info
-                $gd = gd_info();
+                $imgck = Imagick::getVersion();
 
                 // Get system and package info
                 $timestamp  = date('Y-m-d H:i:s');
                 $ugVersion  = 'UberGallery v' . UberGallery::VERSION;
                 $phpVersion = 'PHP: ' . phpversion();
-                $gdVersion  = 'GD: ' . $gd['GD Version'];
+                $imgckVersion  = 'Imagick: ' . $imgck['versionString'];
                 $osVersion  = 'OS: ' . PHP_OS;
 
                 // Combine all the things!
-                $initText = $timestamp . ' / ' . $ugVersion . ' / ' . $phpVersion . ' / ' . $gdVersion . ' / ' . $osVersion . PHP_EOL;
+                $initText = $timestamp . ' / ' . $ugVersion . ' / ' . $phpVersion . ' / ' . $imgckVersion . ' / ' . $osVersion . PHP_EOL;
 
                 // Create file with initilization text
                 file_put_contents($this->_debugLog, $initText, FILE_APPEND);
@@ -634,7 +634,7 @@ class UberGallery {
             $thumbHeight = $this->_config['thumbnail']['height'];
         }
 
-        // Set defaults thumbnail height if not specified
+        // Set defaults thumbnail quality if not specified
         if ($quality === NULL) {
             $quality = $this->_config['thumbnail']['quality'];
         }
@@ -646,7 +646,7 @@ class UberGallery {
         $fileExtension = pathinfo($source, PATHINFO_EXTENSION);
 
         // Build file name
-        $fileName = $thumbWidth . 'x' . $thumbHeight . '-' . $quality . '-' . $fileHash . '.' . $fileExtension;
+        $fileName = $thumbWidth . 'x' . $thumbHeight . '-' . $fileHash . '.' . $fileExtension;
 
         // Build thumbnail destination path
         $destination = $this->_config['cache_dir'] . '/' . $fileName;
@@ -657,58 +657,10 @@ class UberGallery {
             return $relativePath;
         }
 
-        // Get needed image information
-        $imgInfo = getimagesize($source);
-        $width   = $imgInfo[0];
-        $height  = $imgInfo[1];
-        $x       = 0;
-        $y       = 0;
-
-        // Calculate ratios
-        $srcRatio   = $width / $height;
-        $thumbRatio = $thumbWidth / $thumbHeight;
-
-        if ($srcRatio > $thumbRatio) {
-
-            // Preserver original width
-            $originalWidth = $width;
-
-            // Crop image width to proper ratio
-            $width = $height * $thumbRatio;
-
-            // Set thumbnail x offset
-            $x = ceil(($originalWidth - $width) / 2);
-
-        } elseif ($srcRatio < $thumbRatio) {
-
-            // Preserver original height
-            $originalHeight = $height;
-
-            // Crop image height to proper ratio
-            $height = ($width / $thumbRatio);
-
-            // Set thumbnail y offset
-            $y = ceil(($originalHeight - $height) / 2);
-
-        }
-
-        // Create new empty image of proper dimensions
-        $newImage = imagecreatetruecolor($thumbWidth, $thumbHeight);
-
-        // Create new thumbnail
-        if ($imgInfo[2] == IMAGETYPE_JPEG) {
-            $image = imagecreatefromjpeg($source);
-            imagecopyresampled($newImage, $image, 0, 0, $x, $y, $thumbWidth, $thumbHeight, $width, $height);
-            imagejpeg($newImage, $destination, $quality);
-        } elseif ($imgInfo[2] == IMAGETYPE_GIF) {
-            $image = imagecreatefromgif($source);
-            imagecopyresampled($newImage, $image, 0, 0, $x, $y, $thumbWidth, $thumbHeight, $width, $height);
-            imagegif($newImage, $destination);
-        } elseif ($imgInfo[2] == IMAGETYPE_PNG) {
-            $image = imagecreatefrompng($source);
-            imagecopyresampled($newImage, $image, 0, 0, $x, $y, $thumbWidth, $thumbHeight, $width, $height);
-            imagepng($newImage, $destination);
-        }
+        // Create new thumbnail via Imagick
+        $image = new imagick($source);
+        $image->cropThumbnailImage($thumbWidth, $thumbHeight);
+        $image->writeImage($destination);
 
         // Return relative path to thumbnail
         $relativePath = $this->_rThumbsDir . '/' . $fileName;
