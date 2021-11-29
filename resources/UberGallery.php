@@ -19,7 +19,7 @@
 class UberGallery {
 
     // Define application version
-    const VERSION = '2.4.8-1';
+    const VERSION = '2.4.8-2';
 
     // Reserve some variables
     protected $_config     = array();
@@ -180,40 +180,28 @@ class UberGallery {
         // Instantiate gallery array
         $galleryArray = array();
 
-        // Get the cached array
-        $galleryArray = $this->_readIndex($this->_index);
+        // Get array of directory
+        $dirArray = $this->_readDirectory($directory);
 
-        // If cached array is false, read the directory
-        if (!$galleryArray) {
+        // Loop through array and add additional info
+        foreach ($dirArray as $key => $image) {
 
-            // Get array of directory
-            $dirArray = $this->_readDirectory($directory);
+            // Get files relative path
+            $relativePath = $this->_rImgDir . '/' . $key;
 
-            // Loop through array and add additional info
-            foreach ($dirArray as $key => $image) {
+            $galleryArray['images'][htmlentities(pathinfo($image['real_path'], PATHINFO_BASENAME))] = array(
+                'file_title'   => str_replace('_', ' ', pathinfo($image['real_path'], PATHINFO_FILENAME)),
+                'file_path'    => htmlentities($relativePath),
+                'thumb_path'   => $this->_createThumbnail($image['real_path'])
+            );
 
-                // Get files relative path
-                $relativePath = $this->_rImgDir . '/' . $key;
-
-                $galleryArray['images'][htmlentities(pathinfo($image['real_path'], PATHINFO_BASENAME))] = array(
-                    'file_title'   => str_replace('_', ' ', pathinfo($image['real_path'], PATHINFO_FILENAME)),
-                    'file_path'    => htmlentities($relativePath),
-                    'thumb_path'   => $this->_createThumbnail($image['real_path'])
-                );
-
-            }
-
-            // Add statistics to gallery array
-            $galleryArray['stats'] = $this->_readGalleryStats($this->_readDirectory($directory, false));
-
-            // Add gallery paginator to the gallery array
-            $galleryArray['paginator'] = $this->_getPaginatorArray($galleryArray['stats']['current_page'], $galleryArray['stats']['total_pages']);
-
-            // Save the sorted array
-            if ($this->isCachingEnabled()) {
-                $this->_createIndex($galleryArray, $this->_index);
-            }
         }
+
+        // Add statistics to gallery array
+        $galleryArray['stats'] = $this->_readGalleryStats($this->_readDirectory($directory, false));
+
+        // Add gallery paginator to the gallery array
+        $galleryArray['paginator'] = $this->_getPaginatorArray($galleryArray['stats']['current_page'], $galleryArray['stats']['total_pages']);
 
         // Return the array
         return $galleryArray;
@@ -558,40 +546,28 @@ class UberGallery {
         // Set index path
         $index = $this->_config['cache_dir'] . '/' . $this->_hash($directory) . '-' . 'files' . '.index';
 
-        // Read directory array
-        $dirArray = $this->_readIndex($index);
+        // Initialize the array
+        $dirArray = array();
 
-        // Serve from cache if file exists and caching is enabled
-        if (!$dirArray) {
+        // Loop through directory and add information to array
+        if ($handle = opendir($directory)) {
+            while (false !== ($file = readdir($handle))) {
+                if ($file != "." && $file != "..") {
 
-            // Initialize the array
-            $dirArray = array();
+                    // Get files real path
+                    $realPath = realpath($directory . '/' . $file);
 
-            // Loop through directory and add information to array
-            if ($handle = opendir($directory)) {
-                while (false !== ($file = readdir($handle))) {
-                    if ($file != "." && $file != "..") {
-
-                        // Get files real path
-                        $realPath = realpath($directory . '/' . $file);
-
-                        // If file is an image, add info to array
-                        if ($this->_isImage($realPath)) {
-                            $dirArray[htmlentities(pathinfo($realPath, PATHINFO_BASENAME))] = array(
-                                'real_path' => $realPath
-                            );
-                        }
+                    // If file is an image, add info to array
+                    if ($this->_isImage($realPath)) {
+                        $dirArray[htmlentities(pathinfo($realPath, PATHINFO_BASENAME))] = array(
+                            'real_path' => $realPath
+                        );
                     }
                 }
-
-                // Close open file handle
-                closedir($handle);
             }
 
-            // Create directory array
-            if ($this->isCachingEnabled()) {
-                $this->_createIndex($dirArray, $index);
-            }
+            // Close open file handle
+            closedir($handle);
         }
 
         // Set error message if there are no images
@@ -665,141 +641,6 @@ class UberGallery {
         // Return relative path to thumbnail
         $relativePath = $this->_rThumbsDir . '/' . $fileName;
         return $relativePath;
-    }
-
-    /**
-     * Return array from the cached index
-     *
-     * @param string $filePath Path to stored index
-     * @return array|boolean Decoded cached array or false when no valid index is found
-     * @access private
-     */
-    private function _readIndex($filePath) {
-
-        // Return false if file doesn't exist or the cache has expired
-        if (!$this->_isFileCached($filePath)) {
-            return false;
-        }
-
-        // Read file index
-        $indexString = file_get_contents($filePath);
-
-        // Unsearialize the array
-        $indexArray = unserialize($indexString);
-
-        // Decode the array
-        $decodedArray = $this->_arrayDecode($indexArray);
-
-        // Return the array
-        return $decodedArray;
-    }
-
-
-    /**
-     * Create serialized index from file array
-     *
-     * @param string $array Array to be indexed
-     * @param string $filePath Path where index will be stored
-     * @return boolean Returns true on success, false on failure
-     * @access private
-     */
-    private function _createIndex($array, $filePath) {
-
-        // Encode the array
-        $encodedArray = $this->_arrayEncode($array);
-
-        // Serialize array
-        $serializedArray = serialize($encodedArray);
-
-        // Write serialized array to index
-        if (file_put_contents($filePath, $serializedArray)) {
-            return true;
-        }
-
-        return false;
-
-    }
-
-    /**
-     * Runs all array strings through base64_encode to help
-     * prevent errors with non-English languages
-     *
-     * @param array $array Array to be encoded
-     * @return array The encoded array
-     * @access private
-     */
-    private function _arrayEncode($array) {
-
-        $encodedArray = array();
-
-        foreach ($array as $key => $item) {
-
-            // Base64 encode the array keys
-            $key = base64_encode($key);
-
-            // Base64 encode the array values
-            if (is_array($item)) {
-
-                // Recursively call _arrayEncode()
-                $encodedArray[$key] = $this->_arrayEncode($item);
-
-            } elseif (is_string($item)) {
-
-                // Base64 encode the string
-                $encodedArray[$key] = base64_encode($item);
-
-            } else {
-
-                // Pass value unaltered to new array
-                $encodedArray[$key] = $item;
-
-            }
-        }
-
-        // Return the encoded array
-        return $encodedArray;
-
-    }
-
-
-    /**
-     * Decodes an encoded array
-     *
-     * @param array $array Array to be decoded
-     * @return array The decoded array
-     * @access private
-     */
-    private function _arrayDecode($array) {
-
-        $decodedArray = array();
-
-        foreach ($array as $key => $item) {
-
-            // Base64 decode the array keys
-            $key = base64_decode($key);
-
-            // Base64 decode the array values
-            if (is_array($item)) {
-
-                // Recursively call _arrayDecode()
-                $decodedArray[$key] = $this->_arrayDecode($item);
-
-            } elseif (is_string($item)) {
-
-                // Base64 decode the string
-                $decodedArray[$key] = base64_decode($item);
-
-            } else {
-
-                // Pass value unaltered to new array
-                $decodedArray[$key] = $item;
-
-            }
-        }
-
-        // Return the decoded array
-        return $decodedArray;
-
     }
 
 
