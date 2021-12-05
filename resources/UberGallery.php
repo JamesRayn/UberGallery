@@ -65,7 +65,6 @@ class UberGallery {
             $this->setCacheExpiration($config['basic_settings']['cache_expiration']);
             $this->setPaginatorThreshold($config['basic_settings']['paginator_threshold']);
             $this->setThumbSize($config['basic_settings']['thumbnail_width'], $config['basic_settings']['thumbnail_height']);
-            $this->setThumbQuality($config['basic_settings']['thumbnail_quality']);
             $this->setThemeName($config['basic_settings']['theme_name']);
             $this->setSortMethod($config['advanced_settings']['images_sort_by'], $config['advanced_settings']['reverse_sort']);
             $this->setDebugging($config['advanced_settings']['enable_debugging']);
@@ -379,21 +378,6 @@ class UberGallery {
 
 
     /**
-     * Set thumbnail quality as a value from 1 - 100
-     * This only affects JPEGs and has no effect on GIF or PNGs
-     *
-     * @param int $quality Thumbnail size in pixels (default = 75)
-     * @return object Self
-     * @access public
-     */
-    public function setThumbQuality($quality = 75) {
-        $this->_config['thumbnail']['quality'] = $quality;
-
-        return $this;
-    }
-
-
-    /**
      * Set theme name
      *
      * @param string $name Theme name (default = uber-blue)
@@ -594,11 +578,10 @@ class UberGallery {
      * @param string $source Path to source image
      * @param int $thumbWidth Desired thumbnail width size in pixels (default = null)
      * @param int $thumbHeight Desired thumbnail height size in pixels (default = null)
-     * @param int $quality Thumbnail quality, from 1 to 100, applies to JPG and JPEGs only (default = null)
      * @return string Relative path to thumbnail
      * @access private
      */
-    private function _createThumbnail($source, $thumbWidth = NULL, $thumbHeight = NULL, $quality = NULL) {
+    private function _createThumbnail($source, $thumbWidth = NULL, $thumbHeight = NULL) {
 
         // Set defaults thumbnail width if not specified
         if ($thumbWidth === NULL) {
@@ -608,11 +591,6 @@ class UberGallery {
         // Set defaults thumbnail height if not specified
         if ($thumbHeight === NULL) {
             $thumbHeight = $this->_config['thumbnail']['height'];
-        }
-
-        // Set defaults thumbnail quality if not specified
-        if ($quality === NULL) {
-            $quality = $this->_config['thumbnail']['quality'];
         }
 
         // MD5 hash of source image path
